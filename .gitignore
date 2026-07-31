@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.wrangler/
+.DS_Store
+*.log
+*.local
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+.playwright-mcp/
