@@ -886,6 +886,7 @@ function App() {
 
   useEffect(() => {
     let frame = 0;
+    let initialHashFrame = 0;
 
     const updateActiveSection = () => {
       window.cancelAnimationFrame(frame);
@@ -906,12 +907,26 @@ function App() {
       });
     };
 
-    updateActiveSection();
+    initialHashFrame = window.requestAnimationFrame(() => {
+      const hashId = window.location.hash.slice(1);
+      const target = hashId ? document.getElementById(hashId) : null;
+
+      if (target) {
+        const root = document.documentElement;
+        const previousScrollBehavior = root.style.scrollBehavior;
+        root.style.scrollBehavior = 'auto';
+        target.scrollIntoView({ block: 'start' });
+        root.style.scrollBehavior = previousScrollBehavior;
+      }
+
+      updateActiveSection();
+    });
     window.addEventListener('scroll', updateActiveSection, { passive: true });
     window.addEventListener('resize', updateActiveSection, { passive: true });
     window.addEventListener('hashchange', updateActiveSection);
 
     return () => {
+      window.cancelAnimationFrame(initialHashFrame);
       window.cancelAnimationFrame(frame);
       window.removeEventListener('scroll', updateActiveSection);
       window.removeEventListener('resize', updateActiveSection);
