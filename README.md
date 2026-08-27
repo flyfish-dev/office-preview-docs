@@ -21,7 +21,8 @@ site. It covers:
 - DOC, DOCX, PPT, PPTX, XLS, XLSX, and XLSB integration;
 - standalone viewer and integrated demo builds;
 - static hosting, Nginx, Docker, and Cloudflare Pages deployment;
-- migration from an existing `file-viewer` Office implementation;
+- five-minute static-page integration and migration from an existing `file-viewer` Office implementation;
+- authenticated same-origin file proxying, iframe CSP, and rollback guidance;
 - runtime licenses and enterprise distribution grants;
 - browser-local enterprise child-license issuance;
 - production verification, troubleshooting, and delivery checklists.
@@ -67,6 +68,8 @@ public/
   assets/               Brand and product media
   downloads/            Integration examples and checklists
   wasm/                 Browser registrar runtime
+scripts/
+  verify-docs.mjs       Content, download, and disclosure guard
 ```
 
 ## Cloudflare Pages
@@ -87,6 +90,7 @@ Before publishing:
 ```bash
 npm ci
 npm run build
+npm run verify
 ```
 
 Then verify:

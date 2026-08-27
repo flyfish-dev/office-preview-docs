@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "vite build && node scripts/verify-docs.mjs",
+    "verify": "node scripts/verify-docs.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "deploy:cloudflare": "npm run build && npm --userconfig=/dev/null exec --yes --package=wrangler@4.101.0 -- wrangler pages deploy dist --project-name officejs-doc --commit-dirty=true"
   },

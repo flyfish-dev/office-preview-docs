@@ -19,7 +19,8 @@
 - DOC、DOCX、PPT、PPTX、XLS、XLSX、XLSB 接入；
 - 单 Viewer 与综合 Demo 构建；
 - 静态托管、Nginx、Docker 和 Cloudflare Pages 部署；
-- 从现有 `file-viewer` Office 实现迁移；
+- 5 分钟独立预览页接入与现有 `file-viewer` Office 路由替换；
+- 鉴权同源文件代理、iframe CSP 和灰度回滚；
 - 运行许可证与企业分发许可证；
 - 企业版浏览器本地子许可证签发；
 - 生产验收、故障排查和交付清单。
@@ -64,6 +65,8 @@ public/
   assets/               品牌和产品图片
   downloads/            集成示例与验收清单
   wasm/                 浏览器注册机运行时
+scripts/
+  verify-docs.mjs       内容、下载物和公开边界校验
 ```
 
 ## Cloudflare Pages
@@ -83,6 +86,7 @@ npm run deploy:cloudflare
 ```bash
 npm ci
 npm run build
+npm run verify
 ```
 
 然后确认：

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import hljs from 'highlight.js/lib/core';
 import bash from 'highlight.js/lib/languages/bash';
+import css from 'highlight.js/lib/languages/css';
 import javascript from 'highlight.js/lib/languages/javascript';
 import json from 'highlight.js/lib/languages/json';
 import nginx from 'highlight.js/lib/languages/nginx';
@@ -53,6 +54,7 @@ import './styles.css';
 hljs.registerLanguage('bash', bash);
 hljs.registerLanguage('sh', bash);
 hljs.registerLanguage('shell', bash);
+hljs.registerLanguage('css', css);
 hljs.registerLanguage('javascript', javascript);
 hljs.registerLanguage('js', javascript);
 hljs.registerLanguage('json', json);
@@ -64,6 +66,7 @@ const codeLanguageAliases = {
   bash: 'bash',
   sh: 'bash',
   shell: 'bash',
+  css: 'css',
   javascript: 'javascript',
   js: 'javascript',
   json: 'json',
@@ -72,7 +75,7 @@ const codeLanguageAliases = {
   yml: 'yaml'
 };
 
-const siteVersion = '2026.07';
+const siteVersion = '2026.08';
 const registrarVersion = 'v0.1.4';
 const brandAssets = {
   logo: '/assets/office-preview-logo-dark.webp',
@@ -91,9 +94,9 @@ const navGroups = [
   {
     label: '开发部署',
     items: [
-      { id: 'quickstart', title: '快速接入' },
-      { id: 'integration', title: '项目集成整合' },
-      { id: 'file-viewer-migration', title: 'file-viewer 替换路线' },
+      { id: 'quickstart', title: '5 分钟接入' },
+      { id: 'integration', title: '集成方式与接口' },
+      { id: 'file-viewer-migration', title: 'file-viewer 快速集成' },
       { id: 'source-build', title: '源码构建' },
       { id: 'deploy', title: '部署实施' }
     ]
@@ -206,56 +209,69 @@ const customerSteps = [
 
 const integrationModes = [
   {
-    mode: '静态页面接入',
-    scene: '已有系统只需要打开预览页',
-    route: '把 office-preview-js 部署为独立静态目录，业务系统通过 URL 参数传入 file、type、name。',
+    mode: '独立预览页',
+    scene: '已有业务系统，需要最快完成 Office 预览',
+    route: '完整部署静态产物，由业务系统以新页或 iframe 打开预览 URL。文件通过预览站点同源地址提供。',
     effort: '低'
   },
   {
-    mode: '源码集成接入',
-    scene: '需要统一样式、菜单、鉴权和业务交互',
-    route: '使用 office-render-demo 作为集成基线，把 viewer 依赖放在同级目录，按项目 UI 改造入口。',
+    mode: 'file-viewer 路由替换',
+    scene: '已有 file-viewer，保留非 Office 预览和平台能力',
+    route: '在应用路由层优先识别 Office 后缀，挂载独立预览页；PDF、图片、视频、压缩包继续走原 renderer。',
     effort: '中'
   },
   {
-    mode: 'file-viewer 替换接入',
-    scene: '已有 file-viewer 平台，需要替换 Office 预览实现',
-    route: '保留原文件列表、权限和非 Office 预览能力，只把 Office 文件路由切到 Office Preview JS。',
-    effort: '中'
+    mode: '源码级原生集成',
+    scene: '购买源码，需要统一工具栏、主题和生命周期',
+    route: '以 office-render-demo 为集成基线，使用实际交付的 viewer API 建立项目适配层并按格式懒加载。',
+    effort: '高'
   }
 ];
 
 const integrationBoundaries = [
   ['业务系统负责', '文件列表、登录态、下载鉴权、文件 URL 签名、非 Office 格式预览、审计日志。'],
   ['Office Preview JS 负责', 'Office 文件解析、授权校验、WASM 加载、DOC/DOCX/PPT/PPTX/XLS/XLSX/XLSB 渲染。'],
-  ['双方约定接口', 'file、type、name、preview、主题参数、错误回调、容器尺寸和部署域名。'],
-  ['上线前必须确认', 'license 域名、WASM MIME、CSP、跨域访问、样例文件、客户真实文件和回滚入口。']
+  ['最小接口契约', 'file、type、name；preview 可选。file 必须解析为预览页面自身 origin 下的 HTTP(S) 地址。'],
+  ['上线前必须确认', 'license 域名、WASM MIME、父页面 CSP、预览页 frame-ancestors、文件同源代理、真实文件和回滚入口。']
+];
+
+const previewParameterRows = [
+  ['file', '是', '预览站点同源的文件 URL，可为相对路径。生产建议使用一次性或短时效代理路径。'],
+  ['type', '建议', '不带点号的格式，例如 docx、pptx、xlsx。缺省时根据 name 或 URL 推断。'],
+  ['name', '建议', '展示文件名，同时作为格式识别兜底，例如 合同审批.docx。'],
+  ['preview', '否', '兼容参数，可与 type 相同；新接入以 type 为准。']
+];
+
+const deploymentTopologyRows = [
+  ['同域同路径', 'https://app.example.com/office-preview/', '改造最少；文件代理、Cookie 与 iframe 策略最容易统一。', '优先推荐'],
+  ['独立预览域名', 'https://preview.example.com/', '隔离更清晰；需要同时配置 license、frame-ancestors、主应用 frame-src 与文件服务 CORS。', '企业部署'],
+  ['源码直接集成', '业务前端 bundle 内', '适合深度定制；需按交付 API 管理 viewer、Worker、WASM、字体与生命周期。', '源码客户']
 ];
 
 const fileViewerMigrationSteps = [
   {
-    title: '盘点现有入口',
-    text: '列出现有 file-viewer 的 Office 文件后缀、预览路由、文件 URL 获取方式、权限校验和异常提示。'
+    title: '保留现有平台边界',
+    text: '保留 file-viewer 的登录态、文件列表、权限、下载、分享、审计以及 PDF、图片、媒体等非 Office renderer。'
   },
   {
-    title: '部署 Office Preview JS',
-    text: '把公开成品仓或商业构建产物部署到固定子路径，例如 `/office-preview/` 或独立子域名。'
+    title: '完整部署 Office Preview',
+    text: '将正式构建产物完整发布到固定目录，例如 /office-preview/，不要拆分或改写 assets、wasm 的相对结构。'
   },
   {
-    title: '改造 Office 路由',
-    text: '仅将 doc、docx、ppt、pptx、xls、xlsx、xlsb 分流到 Office Preview JS，PDF、图片、视频、文本继续使用原 file-viewer。'
+    title: '提供同源文件代理',
+    text: '业务服务在鉴权后返回短时效文件路径，并由预览站点反向代理为同源 URL，例如 /office-files/{ticket}。'
   },
   {
-    title: '传递最小参数',
-    text: '传入可访问的文件地址、格式和展示名。业务下载鉴权仍由原系统控制，预览页只消费授权后的文件地址。'
+    title: '在应用层分流 Office',
+    text: 'doc、docx、ppt、pptx、xls、xlsx、xlsb 优先进入 Office Preview iframe；其他文件继续交给现有 file-viewer。'
   },
   {
-    title: '补齐部署配置',
-    text: '确认 `office-preview-license.json`、`wasm/office-parser-core.wasm`、CSP、跨域和缓存策略都在目标环境生效。'
+    title: '补齐浏览器策略',
+    text: '同源嵌入保持 frame-ancestors self；跨域嵌入时精确配置主应用 frame-src 与预览站点 frame-ancestors。'
   },
   {
-    title: '双轨验收与回滚',
-    text: '先在灰度环境对比旧实现和 Office Preview JS，验收通过后再切生产；保留配置开关用于快速回滚。'
+    title: '灰度验收并保留回滚',
+    text: '用格式矩阵和真实业务文件验证后再切生产，保留一个配置开关恢复旧 Office renderer。'
   }
 ];
 
@@ -263,9 +279,9 @@ const fileViewerAcceptanceItems = [
   '原 file-viewer 的登录态、文件权限、下载鉴权不被绕过。',
   'Office 文件进入 Office Preview JS，非 Office 文件仍走原预览链路。',
   'doc/docx/ppt/pptx/xls/xlsx/xlsb 后缀识别和 MIME 兜底规则一致。',
-  '跨域文件地址可被浏览器访问，必要时使用同源代理或短期签名 URL。',
+  'file 参数最终解析到预览站点自身 origin，未把第三方任意 URL 直接交给预览页。',
   'WASM、license、assets、samples 或业务文件路径均返回 200。',
-  '移动端和桌面端预览容器高度、滚动行为和错误提示符合原系统体验。',
+  '桌面端与移动端的 iframe 高度、滚动、触控缩放和错误提示符合业务系统体验。',
   '灰度开关可一键切回旧 Office 预览实现。'
 ];
 
@@ -304,59 +320,54 @@ const fileViewerDownloadSamples = [
 
 const fileViewerCodePaths = [
   [
-    'apps/<viewer-app>/src/main.ts',
-    '应用入口',
-    '创建 `mountViewer` 控制器，注册 Office Preview renderer，保留 PDF、图片、视频、压缩包等非 Office renderer。'
+    '文件类型路由',
+    '应用层',
+    'Office 后缀优先返回 office-preview，其他类型继续返回原 file-viewer renderer。'
   ],
   [
-    'apps/<viewer-app>/src/office-preview-renderer.ts',
-    'Office 渲染适配层',
-    '新增文件。声明 doc/docx/ppt/pptx/xls/xlsx/xlsb definitions，并在 handler 中动态 import 对应 Office viewer。'
+    '预览容器',
+    '业务组件层',
+    '以 iframe 挂载独立预览页，销毁或切换文件时同步替换 src，避免多个 viewer 实例残留。'
   ],
   [
-    'apps/<viewer-app>/src/office-preview-license.ts',
-    '授权加载与 WASM 门禁',
-    '新增文件。读取 `office-preview-license.json` 和 `wasm/office-parser-core.wasm`，向 renderer 返回 licenseToken。'
+    '文件鉴权',
+    '业务服务端',
+    '校验当前用户与文件权限，生成短时效 ticket；不要把内部存储地址或永久下载地址放进页面参数。'
   ],
   [
-    'apps/<viewer-app>/src/preview-url.ts',
-    '文件 URL 解析',
-    '可新增或合并到现有 router。负责把业务文件地址解析成 file-viewer 可加载的 HTTP(S) URL。'
+    '同源文件代理',
+    'Nginx / 网关',
+    '将 /office-files/{ticket} 转发到业务下载接口，使 file 参数与预览页面保持同 origin。'
   ],
   [
-    'apps/<viewer-app>/src/styles.css',
-    '预览容器样式',
-    '补充 Office shell、Excel 高度、Word/PPT 居中、工具栏和错误态样式。'
+    '预览静态目录',
+    '部署层',
+    '完整发布 index.html、assets、wasm、license；WASM 使用 application/wasm。'
   ],
   [
-    'apps/<viewer-app>/vite.config.ts',
-    '构建配置',
-    '配置 Office viewer、worker、WASM 资源路径；如果使用 `?url=` 单入口模式，补 dev server fallback。'
+    '浏览器策略',
+    '主应用 + 预览站点',
+    '精确配置 frame-src、frame-ancestors、connect-src 与字体网关；不要使用宽泛的 * 代替部署清单。'
   ],
   [
-    'apps/<viewer-app>/package.json',
-    '依赖与脚本',
-    '加入已授权的 Office viewer 依赖，构建脚本确保 license 和 WASM runtime 被复制到 `public/` 或最终 `dist/`。'
+    '灰度开关',
+    '运行配置',
+    '例如 officePreviewEnabled；关闭后回到原 Office renderer，不影响其他格式。'
   ],
   [
-    'apps/<viewer-app>/public/office-preview-license.json',
-    '运行授权',
-    '部署 runtime license。生产必须由正式订单或企业分发工具生成。'
-  ],
-  [
-    'apps/<viewer-app>/public/wasm/office-parser-core.wasm',
-    'WASM runtime',
-    '部署授权校验和必要门禁 runtime，静态服务器需要正确返回二进制内容。'
+    '源码级适配层',
+    '可选',
+    '只有需要统一工具栏或生命周期时才使用；以实际交付仓 API 为准，不从公开示例猜测包名。'
   ]
 ];
 
 const fileViewerIntegrationChecklist = [
-  '先在 file-viewer 应用入口接入 Office renderer，不要改 core 包的通用匹配逻辑。',
-  'Office renderer 放在 renderers 列表最前面，确保 Office 后缀优先命中。',
-  '业务系统仍负责文件鉴权；preview URL 必须是已授权、可被浏览器访问的地址。',
-  '压缩包内 Office 文件预览时，nested renderer 也要复用同一组 rendererPlugins。',
-  'Excel viewer 必须走 worker 和虚拟滚动配置，避免大表阻塞 UI 线程。',
-  '上线前使用 doc/docx/ppt/pptx/xls/xlsx/xlsb 逐类回归。'
+  '在 file-viewer 应用路由层完成分流，不改它的 core 匹配逻辑。',
+  'Office 后缀规则优先于通用二进制或文本兜底 renderer。',
+  '业务系统先鉴权，再生成一次性或短时效文件代理 URL。',
+  'iframe 只使用固定、受信任的预览基址，不能接受用户传入的任意 runtime 地址。',
+  '卸载组件时清空 iframe，切换文件时取消旧请求，避免内存和 Worker 残留。',
+  '上线前使用 doc/docx/ppt/pptx/xls/xlsx/xlsb 逐类回归，并加入至少一个大表样例。'
 ];
 
 const registrarSteps = [
@@ -374,7 +385,7 @@ const verificationItems = [
   'wasm/office-parser-core.wasm 返回 application/wasm 或二进制内容。',
   '购买的 Word、PowerPoint、Excel 格式均可正常预览。',
   '超出授权范围的格式能给出明确提示。',
-  '浏览器控制台无授权、WASM、资源 MIME 或跨域错误。',
+  '浏览器控制台无授权、WASM、资源 MIME、frame-ancestors 或同源策略错误。',
   '大 Excel 文件滚动平滑，行列宽高、边框、溢出规则符合预期。',
   '私有部署环境已备份 license、构建版本和交付记录。'
 ];
@@ -382,6 +393,8 @@ const verificationItems = [
 const troubleshootingRows = [
   ['授权域名不匹配', '当前 location.origin 不在 allowedOrigins 中。', '重新签发包含正式域名的 runtime license 或 registrar grant。'],
   ['WASM 加载失败', '静态服务器 MIME、路径或缓存配置错误。', '确认 wasm/office-parser-core.wasm 存在，并返回二进制内容。'],
+  ['iframe 显示空白', '预览页 frame-ancestors 或主应用 frame-src 未允许对方 origin。', '同源部署保持 self；跨域部署时在双方 CSP 中加入精确 origin。'],
+  ['文件地址被拒绝', 'file 参数解析到另一个 origin，独立预览页不会读取该地址。', '通过预览域名下的同源代理提供文件，或使用源码交付约定的安全桥接方案。'],
   ['构建找不到 viewer', '源码仓没有放在约定相对目录。', '按 office-workspace 布局克隆 viewer 仓，或调整 package.json file 依赖。'],
   ['Excel 大文件卡死', '未启用 virtual-excel 能力或没有走虚拟滚动渲染。', '确认 license 包含 virtual-excel，并使用最新 excel-viewer 构建。'],
   ['注册机超额', 'grant 的 maxIssuedLicenses 已耗尽。', '联系飞鱼扩容或改用在线签发服务。'],
@@ -887,6 +900,7 @@ function App() {
   return (
     <div className="app-shell">
       <TopBar />
+      <MobileNav groups={filteredNav} activeId={activeId} />
       <aside className="side-nav" aria-label="文档目录">
         <a className="brand" href="#overview" aria-label="Office Preview 文档首页">
           <img className="brand-logo" src={brandAssets.logo} alt="Office Preview" decoding="async" />
@@ -976,7 +990,7 @@ function App() {
               </div>
             </div>
             <figure className="media-frame">
-              <img src="/assets/office-hero-banner.png" alt="Office Preview 多格式文档预览展示" loading="lazy" decoding="async" />
+              <img src="/assets/office-hero-banner.webp" alt="Office Preview 多格式文档预览展示" loading="lazy" decoding="async" />
             </figure>
           </div>
 
@@ -997,26 +1011,42 @@ function App() {
           <Table columns={['仓库', '可见性', '用途']} rows={repoRows} />
         </Section>
 
-        <Section id="quickstart" kicker="Quick Start" title="开发者快速接入">
-          <div className="split">
-            <div>
-              <h3>公开体验版</h3>
-              <p>
-                免费体验仓只包含已经构建好的静态产物，可用于本地验证和售前评估。它不是开源商用授权，也不包含解析器源码。
-              </p>
-              <CodeBlock language="bash">{`git clone https://github.com/flyfish-dev/office-preview-js.git
+        <Section id="quickstart" kicker="Quick Start" title="5 分钟完成第一次接入">
+          <p className="lead">
+            先选择交付形态，再开始写代码。公开成品用于本地评估；正式项目部署订单交付的构建产物与许可证；购买源码后再使用综合工作区进行二次开发。
+          </p>
+
+          <div className="cards three route-cards">
+            <InfoCard icon={PlayCircle} title="先看效果" text="运行 office-preview-js 公开成品，验证浏览器、网络和目标文件，不作为生产授权包。" />
+            <InfoCard icon={Link2} title="最快接入" text="把正式静态产物部署到 /office-preview/，业务系统通过新页或 iframe 打开预览 URL。" />
+            <InfoCard icon={Code2} title="源码集成" text="使用 office-render-demo 和合同内 viewer 仓，建立项目适配层并执行全链路构建。" />
+          </div>
+
+          <h3>1. 本地确认成品可运行</h3>
+          <CodeBlock language="bash">{`git clone https://github.com/flyfish-dev/office-preview-js.git
 cd office-preview-js
 python3 -m http.server 5178 --bind 127.0.0.1
 
-# 浏览器访问
-http://127.0.0.1:5178/`}</CodeBlock>
-            </div>
-            <figure className="media-frame small">
-              <img src="/assets/office-preview-devlog-cover.png" alt="Office Preview 开发与交付展示" loading="lazy" decoding="async" />
-            </figure>
-          </div>
+# 打开 http://127.0.0.1:5178/ 后上传本地 Office 文件验证`}</CodeBlock>
 
-          <h3>综合源码包工作区</h3>
+          <h3>2. 正式项目准备四项内容</h3>
+          <Table
+            columns={['内容', '部署位置', '验收方式']}
+            rows={[
+              ['完整静态构建产物', '/office-preview/ 或独立预览域名', 'index.html、assets、wasm 均返回 200'],
+              ['office-preview-license.json', '静态产物根目录', '当前预览 origin 在授权范围内'],
+              ['同源文件代理', '/office-files/{短时 ticket}', 'file 参数与预览页面 origin 相同'],
+              ['浏览器安全策略', '主应用与预览站点响应头', 'iframe 可显示且控制台无 CSP 错误']
+            ]}
+          />
+
+          <h3>3. 打开第一个业务文件</h3>
+          <CodeBlock language="text">{`/office-preview/?file=%2Foffice-files%2FeyJ...&type=docx&name=%E5%90%88%E5%90%8C.docx`}</CodeBlock>
+          <p>
+            上例中的 <code>file</code> 是预览域名下的相对路径。业务服务应先校验当前用户是否有权读取文件，再生成短时效 ticket；预览页不应收到对象存储永久地址或任意第三方 URL。
+          </p>
+
+          <h3>4. 综合源码包工作区</h3>
           <CodeBlock language="text">{`office-workspace/
   office-render-demo/
   docx-viewer/
@@ -1027,16 +1057,14 @@ http://127.0.0.1:5178/`}</CodeBlock>
   hucre/`}</CodeBlock>
 
           <CodeBlock language="bash">{`cd office-render-demo
-npm install
-npm run build:viewers
-npm run build
-npm run preview`}</CodeBlock>
+npm --userconfig=/dev/null install
+npm --userconfig=/dev/null run build:all
+npm --userconfig=/dev/null run preview`}</CodeBlock>
         </Section>
 
-        <Section id="integration" kicker="Integration" title="项目集成整合">
+        <Section id="integration" kicker="Integration" title="集成方式、URL 接口与部署拓扑">
           <p className="lead">
-            Office Preview JS 建议作为独立 Office 预览能力接入到业务系统。业务系统继续负责账号、权限、文件列表和下载鉴权；
-            Office Preview JS 专注完成 Office 文件的授权校验、解析和渲染。
+            最稳妥的边界是：业务系统负责身份、权限与文件访问，Office Preview 负责授权校验、解析和渲染。两者通过一个固定预览入口和一个短时效同源文件地址连接。
           </p>
 
           <Table
@@ -1044,13 +1072,13 @@ npm run preview`}</CodeBlock>
             rows={integrationModes.map((row) => [row.mode, row.scene, row.route, row.effort])}
           />
 
-          <h3>推荐链路</h3>
+          <h3>推荐运行链路</h3>
           <div className="flow-line">
             {[
-              ['业务系统选择文件', FileText],
-              ['生成授权文件地址', Link2],
-              ['打开 Office Preview JS', Workflow],
-              ['完成渲染与验收', MonitorCheck]
+              ['用户请求预览', FileText],
+              ['服务端校验权限', ShieldCheck],
+              ['签发同源短时路径', Link2],
+              ['预览页解析渲染', MonitorCheck]
             ].map(([label, Icon]) => (
               <div className="flow-node" key={label}>
                 <Icon size={22} />
@@ -1062,18 +1090,78 @@ npm run preview`}</CodeBlock>
           <h3>系统边界</h3>
           <Table columns={['范围', '说明']} rows={integrationBoundaries} />
 
-          <h3>最小 URL 参数</h3>
-          <CodeBlock language="text">{`/office-preview/?file=https%3A%2F%2Ffiles.example.com%2Fdemo.docx&type=docx&name=demo.docx&preview=docx`}</CodeBlock>
+          <h3>部署拓扑怎么选</h3>
+          <Table columns={['模式', '示例', '特点', '建议']} rows={deploymentTopologyRows} />
+
+          <h3>预览 URL 参数</h3>
+          <Table columns={['参数', '必填', '说明']} rows={previewParameterRows} />
+
+          <h3>统一生成预览地址</h3>
+          <CodeBlock language="js">{`const OFFICE_TYPES = new Set(['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'xlsb']);
+
+export function createOfficePreviewUrl({ viewerBase, filePath, type, name }) {
+  const normalizedType = String(type || '').replace(/^\\./, '').toLowerCase();
+  if (!OFFICE_TYPES.has(normalizedType)) throw new Error('Unsupported Office type');
+
+  const viewerUrl = new URL(viewerBase, window.location.origin);
+  const fileUrl = new URL(filePath, viewerUrl);
+  if (fileUrl.origin !== viewerUrl.origin) {
+    throw new Error('Office Preview requires a same-origin file URL');
+  }
+
+  viewerUrl.search = new URLSearchParams({
+    file: fileUrl.pathname + fileUrl.search,
+    type: normalizedType,
+    name: name || \`document.\${normalizedType}\`
+  }).toString();
+  return viewerUrl.toString();
+}`}</CodeBlock>
+
+          <h3>iframe 容器</h3>
+          <CodeBlock language="js">{`const iframe = document.createElement('iframe');
+iframe.className = 'office-preview-frame';
+iframe.title = file.name || 'Office document preview';
+iframe.loading = 'eager';
+iframe.allow = 'clipboard-read; clipboard-write';
+iframe.src = createOfficePreviewUrl({
+  viewerBase: '/office-preview/',
+  filePath: file.previewPath,
+  type: file.extension,
+  name: file.name
+});
+container.replaceChildren(iframe);`}</CodeBlock>
+
+          <CodeBlock language="css">{`.office-preview-frame {
+  display: block;
+  width: 100%;
+  height: min(82vh, 960px);
+  min-height: 560px;
+  border: 0;
+  background: #f5f7fa;
+}`}</CodeBlock>
 
           <div className="notice">
             <ShieldCheck size={20} />
             <p>
-              生产环境建议优先使用同源代理或短期签名 URL。Office Preview JS 不接管业务权限，只读取业务系统已经允许访问的文件地址。
+              独立预览页会拒绝读取其他 origin 的 file 地址。CORS 放行并不能替代同源要求；请将业务下载接口反向代理到预览站点，或采用正式源码交付中约定的安全桥接方案。
             </p>
           </div>
+
+          <h3>跨域 iframe 的三处配置</h3>
+          <Table
+            columns={['位置', '必须配置', '示例']}
+            rows={[
+              ['许可证', '允许预览页面自身 origin', 'https://preview.example.com'],
+              ['主应用 CSP', 'frame-src 允许预览 origin', "frame-src 'self' https://preview.example.com"],
+              ['预览站点 CSP', 'frame-ancestors 允许主应用 origin', "frame-ancestors 'self' https://app.example.com"]
+            ]}
+          />
+          <p>
+            某些企业交付还包含 <code>runtime-config.json</code> 与父子页面消息握手。只有交付包明确提供该文件时才配置 <code>allowedParentOrigins</code>，并使用不带路径的精确 origin；标准独立预览页不需要自行创建这份配置。
+          </p>
         </Section>
 
-        <Section id="file-viewer-migration" kicker="Migration" title="file-viewer 替换 Office 预览实现">
+        <Section id="file-viewer-migration" kicker="Migration" title="file-viewer 快速集成：只替换 Office 路由">
           <p className="lead">
             典型改造方式是“保留 file-viewer 的平台能力，只替换 Office 文件渲染器”。这样改造范围清晰，非 Office
             格式不受影响，出现问题时也能通过配置快速回滚。
@@ -1110,151 +1198,73 @@ npm run preview`}</CodeBlock>
             ))}
           </div>
 
-          <h3>file-viewer 具体改动路径</h3>
+          <h3>需要改动的边界</h3>
           <p>
-            参考历史 Docker 交付中的 file-viewer 接入方式，建议在业务应用层增加 Office Preview renderer，
-            不要直接改 `@file-viewer/core` 的通用能力。下面的 <code>{'<viewer-app>'}</code> 通常是 `apps/viewer-demo`
-            或客户自己的 file-viewer 应用目录。
+            快速路线不修改 file-viewer core，也不把 Office viewer 打进原应用 bundle。只在业务应用层新增一个 Office 分流规则和 iframe 容器，部署与回滚都更容易控制。
           </p>
-          <Table columns={['路径', '作用', '接入说明']} rows={fileViewerCodePaths} />
+          <Table columns={['改动项', '所在层', '接入说明']} rows={fileViewerCodePaths} />
 
-          <h3>最小整合 demo：应用入口</h3>
-          <CodeBlock language="js">{`import { mountViewer } from '@file-viewer/web';
-import { pdfRenderer } from '@file-viewer/renderer-pdf';
-import { imageRenderer } from '@file-viewer/renderer-image';
-import { renderFileViewerArchive, archiveRendererDefinition } from '@file-viewer/renderer-archive';
-import { officePreviewRenderer } from './office-preview-renderer';
-import { resolvePreviewUrl, resolveFilenameFromUrl } from './preview-url';
+          <h3>第一处改动：Office 路由优先分流</h3>
+          <CodeBlock language="js">{`const OFFICE_EXTENSIONS = new Set([
+  'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'xlsb'
+]);
 
-const viewerElement = document.querySelector('#viewer');
-const controller = mountViewer(viewerElement, {}, {
-  fetchFile: fetchRemoteFile,
-  onError(error) {
-    showError(error);
+export function resolvePreviewRoute(file, config) {
+  const ext = String(file.extension || file.name?.split('.').pop() || '')
+    .replace(/^\\./, '')
+    .toLowerCase();
+
+  if (!config.officePreviewEnabled || !OFFICE_EXTENSIONS.has(ext)) {
+    return { kind: 'legacy', file };
   }
-});
 
-const rendererPlugins = [
-  officePreviewRenderer,
-  pdfRenderer,
-  imageRenderer,
-  {
-    id: 'archive-with-office-preview',
-    definitions: [archiveRendererDefinition],
-    handlers: [{
-      rendererId: archiveRendererDefinition.id,
-      handler: (buffer, target, type, context) => renderFileViewerArchive(buffer, target, type, {
-        ...context,
-        renderNestedBuffer
-      })
-    }]
-  }
-];
-
-await controller.load({
-  url: resolvePreviewUrl(),
-  filename: resolveFilenameFromUrl(),
-  options: {
-    theme: 'light',
-    rendererMode: 'replace',
-    builtinRenderers: 'none',
-    renderers: rendererPlugins,
-    toolbar: false,
-    search: true
-  }
-});
-
-async function fetchRemoteFile({ url, signal }) {
-  const response = await fetch(url, {
-    signal,
-    cache: 'no-store',
-    credentials: new URL(url).origin === location.origin ? 'include' : 'omit'
+  const url = createOfficePreviewUrl({
+    viewerBase: config.officePreviewBaseUrl,
+    filePath: file.officePreviewPath,
+    type: ext,
+    name: file.name
   });
-  if (!response.ok) throw new Error(\`Failed to fetch file: \${response.status}\`);
-  const blob = await response.blob();
-  return new File([blob], resolveFilenameFromUrl(response.url), {
-    type: blob.type || 'application/octet-stream'
-  });
+  return { kind: 'office-preview', url, name: file.name };
 }`}</CodeBlock>
 
-          <h3>最小整合 demo：Office renderer 核心骨架</h3>
-          <p>
-            下面展示最容易出问题的 DOCX Canvas 渲染和 Excel worker 虚拟滚动接入方式。DOC、PPT、PPTX
-            按同一文件中的 handler 模式补齐，包名以交付仓实际提供的 viewer 依赖为准。
-          </p>
-          <CodeBlock language="js">{`import { getOfficeViewerLicenseToken } from './office-preview-license';
+          <h3>第二处改动：挂载并正确销毁 iframe</h3>
+          <CodeBlock language="js">{`export function mountPreview(container, route, legacyViewer) {
+  if (route.kind !== 'office-preview') {
+    return legacyViewer.mount(container, route.file);
+  }
 
-const officeDefinitions = [
-  { id: 'office-docx', extensions: ['docx', 'docm'], async: true, capabilities: { download: true, zoom: 'provider', search: true } },
-  { id: 'office-doc', extensions: ['doc', 'dot'], async: true, capabilities: { download: true, zoom: 'provider', search: true } },
-  { id: 'office-pptx', extensions: ['pptx', 'pptm', 'ppsx'], async: true, capabilities: { download: true, zoom: 'provider', search: true } },
-  { id: 'office-ppt', extensions: ['ppt', 'pot', 'pps'], async: true, capabilities: { download: true, zoom: 'provider', search: true } },
-  { id: 'office-excel', extensions: ['xlsx', 'xlsm', 'xls', 'xlsb'], async: true, capabilities: { download: true, zoom: 'provider', search: true } }
-];
+  const frame = document.createElement('iframe');
+  frame.className = 'office-preview-frame';
+  frame.title = route.name || 'Office document preview';
+  frame.src = route.url;
+  frame.setAttribute('allow', 'clipboard-read; clipboard-write');
+  container.replaceChildren(frame);
 
-async function renderDocx(buffer, target, type, context) {
-  const licenseToken = await getOfficeViewerLicenseToken(type);
-  const shell = createOfficeShell(target);
-  const [{ renderAsync }, workerUrl] = await Promise.all([
-    import('@office-preview/docx-viewer'),
-    import('@office-preview/docx-viewer/worker?url').then((module) => module.default)
-  ]);
+  return () => {
+    frame.src = 'about:blank';
+    frame.remove();
+  };
+}`}</CodeBlock>
 
-  await renderAsync(new Blob([buffer]), shell.content, shell.content, {
-    renderMode: 'canvas',
-    breakPages: true,
-    useWorker: true,
-    workerUrl,
-    initialRenderPageCount: 2,
-    renderPageBatchSize: 3,
-    progress() {
-      context?.onProgressiveRender?.();
-    },
-    licenseToken
+          <h3>第三处改动：服务端签发文件路径</h3>
+          <CodeBlock language="js">{`// 伪代码：必须在服务端完成权限校验
+app.post('/api/files/:id/preview-ticket', requireLogin, async (req, res) => {
+  const file = await files.findById(req.params.id);
+  await permissions.assertCanRead(req.user, file);
+
+  const ticket = await previewTickets.issue({
+    userId: req.user.id,
+    fileId: file.id,
+    version: file.version,
+    expiresInSeconds: 300
   });
 
-  return shell;
-}
-
-async function renderExcel(buffer, target, type, context) {
-  const licenseToken = await getOfficeViewerLicenseToken(type);
-  const shell = createOfficeShell(target);
-  const [{ createExcelWorkerClient, mountExcel }, ExcelWorker] = await Promise.all([
-    import('@office-preview/excel-viewer'),
-    import('@office-preview/excel-viewer/worker?worker').then((module) => module.default)
-  ]);
-
-  const workerClient = createExcelWorkerClient({ worker: new ExcelWorker() });
-  const workbook = await workerClient.load(buffer, {
-    format: type,
-    onProgress: () => context?.onProgressiveRender?.(),
-    licenseToken
+  res.json({
+    name: file.name,
+    extension: file.extension,
+    officePreviewPath: \`/office-files/\${ticket}\`
   });
-
-  const handle = mountExcel(shell.content, workbook, {
-    workerClient,
-    virtualOverscan: 720,
-    virtualWindowRowPadding: 640,
-    virtualMaxRenderedCells: 14000,
-    terminateWorkerOnDestroy: true,
-    licenseToken
-  });
-
-  return createCompositeHandle(shell, handle);
-}
-
-export const officePreviewRenderer = {
-  id: 'office-preview-renderer',
-  label: 'Office Preview renderer',
-  definitions: officeDefinitions,
-  handlers: [
-    { rendererId: 'office-docx', handler: renderDocx },
-    { rendererId: 'office-doc', handler: renderDoc },
-    { rendererId: 'office-pptx', handler: renderPptx },
-    { rendererId: 'office-ppt', handler: renderPpt },
-    { rendererId: 'office-excel', handler: renderExcel }
-  ]
-};`}</CodeBlock>
+});`}</CodeBlock>
 
           <h3>接入检查点</h3>
           <div className="qa-grid">
@@ -1266,14 +1276,23 @@ export const officePreviewRenderer = {
             ))}
           </div>
 
-          <h3>Nginx 子路径部署示例</h3>
-          <CodeBlock language="nginx">{`location = /office-preview {
+          <h3>Nginx：静态预览页与同源文件代理</h3>
+          <CodeBlock language="nginx">{`# 将 dist 完整复制到 /srv/www/office-preview/
+root /srv/www;
+
+location = /office-preview {
   return 301 /office-preview/;
 }
 
 location /office-preview/ {
-  rewrite ^/office-preview/(.*)$ /$1 break;
-  try_files $uri $uri/ /index.html;
+  try_files $uri $uri/ /office-preview/index.html;
+}
+
+location /office-files/ {
+  proxy_pass http://file-service/internal/preview/;
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-Proto $scheme;
+  proxy_set_header X-Real-IP $remote_addr;
 }
 
 location ~* \\.wasm$ {
@@ -1299,6 +1318,13 @@ location ~* \\.wasm$ {
 
           <h3>示例文件下载</h3>
           <SampleDownloads items={fileViewerDownloadSamples} />
+
+          <div className="notice">
+            <Code2 size={20} />
+            <p>
+              需要把 Office viewer 直接注册为 file-viewer 原生 renderer 时，请使用源码交付包内的实际适配层和 API 文档。公开文档不写死内部包名，避免版本升级后客户复制过期接口。
+            </p>
+          </div>
 
           <h3>验收清单</h3>
           <div className="qa-grid">
@@ -1335,13 +1361,22 @@ location ~* \\.wasm$ {
           <h3>单 viewer 示例</h3>
           <CodeBlock language="bash">{`# DOCX Viewer
 cd docx-viewer
-npm install
+npm --userconfig=/dev/null install
 npm run build
 
 # Excel Viewer 需要 excel-viewer + hucre
 cd excel-viewer
-npm install
+npm --userconfig=/dev/null install
 npm run build`}</CodeBlock>
+
+          <h3>综合 viewer 全链路构建</h3>
+          <CodeBlock language="bash">{`# 各 viewer 与 office-render-demo 必须位于同一父目录
+cd office-render-demo
+npm --userconfig=/dev/null install
+npm --userconfig=/dev/null run build:all
+
+# 只发布构建后的 dist/
+npm --userconfig=/dev/null run preview`}</CodeBlock>
 
           <div className="notice">
             <ShieldCheck size={20} />
@@ -1375,7 +1410,29 @@ npm run build`}</CodeBlock>
           <h3>Cloudflare Pages 部署</h3>
           <CodeBlock language="bash">{`npm run build
 npm --userconfig=/dev/null exec --yes --package=wrangler@4.101.0 -- \\
-  wrangler pages deploy dist --project-name officejs-doc`}</CodeBlock>
+  wrangler pages deploy dist --project-name <your-office-preview-project>`}</CodeBlock>
+
+          <h3>Nginx 最小响应要求</h3>
+          <CodeBlock language="nginx">{`types {
+  application/wasm wasm;
+}
+
+location = /office-preview/office-preview-license.json {
+  alias /srv/office-preview/dist/office-preview-license.json;
+  add_header Cache-Control "no-store" always;
+}
+
+location /office-preview/assets/ {
+  alias /srv/office-preview/dist/assets/;
+  add_header Cache-Control "public, max-age=31536000, immutable" always;
+}`}</CodeBlock>
+
+          <div className="notice warn">
+            <AlertCircle size={20} />
+            <p>
+              不要只替换 index.html 或单个 JavaScript 文件。每次发布应使用同一次构建产生的完整 dist，确保入口、分块、Worker、WASM 与样式哈希一致。
+            </p>
+          </div>
         </Section>
 
         <Section id="license-model" kicker="License" title="授权模型">
@@ -1604,6 +1661,32 @@ function TopBar() {
   );
 }
 
+function MobileNav({ groups, activeId }) {
+  const detailsRef = useRef(null);
+
+  return (
+    <details className="mobile-toc" ref={detailsRef}>
+      <summary>
+        <BookOpenText size={17} aria-hidden="true" />
+        <span>文档导航</span>
+        <strong>{groups.flatMap((group) => group.items).find((item) => item.id === activeId)?.title || '总览'}</strong>
+      </summary>
+      <nav aria-label="移动端文档目录">
+        {groups.flatMap((group) => group.items).map((item) => (
+          <a
+            key={item.id}
+            href={`#${item.id}`}
+            className={activeId === item.id ? 'active' : ''}
+            onClick={() => detailsRef.current?.removeAttribute('open')}
+          >
+            {item.title}
+          </a>
+        ))}
+      </nav>
+    </details>
+  );
+}
+
 function Hero() {
   return (
     <section className="doc-hero" id="top">
@@ -1612,7 +1695,7 @@ function Hero() {
         <p className="eyebrow">OFFICE PREVIEW / DELIVERY GUIDE</p>
         <h1>Office Preview 文档中心</h1>
         <p>
-          从开发、部署、实施、授权下发到企业源码交付，一份文档把 Office Preview 的使用路径和交付边界讲清楚。
+          从 5 分钟接入、file-viewer 替换、鉴权文件代理到生产部署与授权交付，按一条可验证的路径把项目真正跑通。
         </p>
         <div className="hero-actions">
           <a className="button primary" href="#quickstart">
@@ -1627,8 +1710,8 @@ function Hero() {
       </div>
       <div className="hero-status" aria-label="文档状态">
         <span>Docs {siteVersion}</span>
-        <span>Registrar {registrarVersion}</span>
-        <span>Cloudflare Pages: officejs-doc</span>
+        <span>7 种 Office 格式</span>
+        <span>集成、部署、验收一体</span>
       </div>
     </section>
   );
