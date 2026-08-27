@@ -887,6 +887,7 @@ function App() {
   useEffect(() => {
     let frame = 0;
     let initialHashFrame = 0;
+    let initialHashTimer = 0;
 
     const updateActiveSection = () => {
       window.cancelAnimationFrame(frame);
@@ -907,7 +908,7 @@ function App() {
       });
     };
 
-    initialHashFrame = window.requestAnimationFrame(() => {
+    const syncInitialHash = () => {
       const hashId = window.location.hash.slice(1);
       const target = hashId ? document.getElementById(hashId) : null;
 
@@ -920,12 +921,16 @@ function App() {
       }
 
       updateActiveSection();
-    });
+    };
+
+    initialHashFrame = window.requestAnimationFrame(syncInitialHash);
+    initialHashTimer = window.setTimeout(syncInitialHash, 180);
     window.addEventListener('scroll', updateActiveSection, { passive: true });
     window.addEventListener('resize', updateActiveSection, { passive: true });
     window.addEventListener('hashchange', updateActiveSection);
 
     return () => {
+      window.clearTimeout(initialHashTimer);
       window.cancelAnimationFrame(initialHashFrame);
       window.cancelAnimationFrame(frame);
       window.removeEventListener('scroll', updateActiveSection);

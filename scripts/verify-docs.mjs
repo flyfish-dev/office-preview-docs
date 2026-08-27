@@ -43,6 +43,7 @@ for (const phrase of [
   "window.localStorage.setItem('officejs-doc:theme'",
   "window.addEventListener('scroll', updateActiveSection",
   "target.scrollIntoView({ block: 'start' })",
+  "window.setTimeout(syncInitialHash, 180)",
   "className=\"theme-toggle\""
 ]) {
   assert(source.includes(phrase), `Missing navigation or theme behavior: ${phrase}`);
