@@ -38,7 +38,7 @@ distribution grant. Selecting a grant does not upload that file to a server.
 
 Requirements:
 
-- Node.js 20 or later;
+- Node.js 22 or later;
 - npm 10 or later.
 
 ```bash
