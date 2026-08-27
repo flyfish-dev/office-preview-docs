@@ -35,6 +35,7 @@ import {
   Link2,
   LockKeyhole,
   MonitorCheck,
+  Moon,
   PackageCheck,
   PlayCircle,
   Rocket,
@@ -43,6 +44,7 @@ import {
   Save,
   ShieldCheck,
   ShoppingCart,
+  Sun,
   TerminalSquare,
   UploadCloud,
   Workflow,
@@ -78,7 +80,8 @@ const codeLanguageAliases = {
 const siteVersion = '2026.08';
 const registrarVersion = 'v0.1.4';
 const brandAssets = {
-  logo: '/assets/office-preview-logo-dark.webp',
+  logoDark: '/assets/office-preview-logo-dark.webp',
+  logoLight: '/assets/office-preview-logo-light.webp',
   mark: '/assets/office-preview-mark.webp'
 };
 
@@ -859,31 +862,61 @@ function toFriendlyError(error) {
 function App() {
   const [activeId, setActiveId] = useState('overview');
   const [query, setQuery] = useState('');
+  const [theme, setTheme] = useState(() =>
+    document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+  );
 
   useEffect(() => {
     document.title = 'Office Preview 文档中心';
   }, []);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-
-        if (visible[0]?.target?.id) {
-          setActiveId(visible[0].target.id);
-        }
-      },
-      { rootMargin: '-18% 0px -68% 0px', threshold: [0.1, 0.3, 0.6] }
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute(
+      'content',
+      theme === 'dark' ? '#090d0b' : '#f5f8f6'
     );
+    try {
+      window.localStorage.setItem('officejs-doc:theme', theme);
+    } catch {
+      // Theme persistence is optional when storage is unavailable.
+    }
+  }, [theme]);
 
-    sectionIds.forEach((id) => {
-      const element = document.getElementById(id);
-      if (element) observer.observe(element);
-    });
+  useEffect(() => {
+    let frame = 0;
 
-    return () => observer.disconnect();
+    const updateActiveSection = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const marker = window.innerWidth <= 980 ? 152 : 112;
+        const atPageEnd =
+          window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+        let nextId = sectionIds[0];
+
+        for (const id of sectionIds) {
+          const section = document.getElementById(id);
+          if (!section || section.getBoundingClientRect().top > marker) break;
+          nextId = id;
+        }
+
+        if (atPageEnd) nextId = sectionIds[sectionIds.length - 1];
+        setActiveId((current) => (current === nextId ? current : nextId));
+      });
+    };
+
+    updateActiveSection();
+    window.addEventListener('scroll', updateActiveSection, { passive: true });
+    window.addEventListener('resize', updateActiveSection, { passive: true });
+    window.addEventListener('hashchange', updateActiveSection);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', updateActiveSection);
+      window.removeEventListener('resize', updateActiveSection);
+      window.removeEventListener('hashchange', updateActiveSection);
+    };
   }, []);
 
   const filteredNav = useMemo(() => {
@@ -899,11 +932,19 @@ function App() {
 
   return (
     <div className="app-shell">
-      <TopBar />
+      <TopBar
+        theme={theme}
+        onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+      />
       <MobileNav groups={filteredNav} activeId={activeId} />
       <aside className="side-nav" aria-label="文档目录">
         <a className="brand" href="#overview" aria-label="Office Preview 文档首页">
-          <img className="brand-logo" src={brandAssets.logo} alt="Office Preview" decoding="async" />
+          <img
+            className="brand-logo"
+            src={theme === 'dark' ? brandAssets.logoLight : brandAssets.logoDark}
+            alt="Office Preview"
+            decoding="async"
+          />
         </a>
 
         <label className="nav-search">
@@ -1642,21 +1683,55 @@ office-preview-registrar ledger --grant office-preview-registrar.lic`}</CodeBloc
   );
 }
 
-function TopBar() {
+function TopBar({ theme, onToggleTheme }) {
+  const dark = theme === 'dark';
+  const toggleLabel = dark ? '切换到浅色模式' : '切换到深色模式';
+
   return (
     <header className="top-bar">
-      <a className="top-link" href={links.demo} target="_blank" rel="noreferrer">
+      <a
+        className="top-link"
+        href={links.demo}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="在线 Demo"
+        title="在线 Demo"
+      >
         <PlayCircle size={17} />
-        在线 Demo
+        <span>在线 Demo</span>
       </a>
-      <a className="top-link" href={links.publicRepo} target="_blank" rel="noreferrer">
+      <a
+        className="top-link"
+        href={links.publicRepo}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="免费验证仓"
+        title="免费验证仓"
+      >
         <FileCode2 size={17} />
-        免费验证仓
+        <span>免费验证仓</span>
       </a>
-      <a className="top-link primary" href={links.shop} target="_blank" rel="noreferrer">
+      <a
+        className="top-link primary"
+        href={links.shop}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="购买与开通"
+        title="购买与开通"
+      >
         <ShoppingCart size={17} />
-        购买与开通
+        <span>购买与开通</span>
       </a>
+      <button
+        className="theme-toggle"
+        type="button"
+        onClick={onToggleTheme}
+        aria-label={toggleLabel}
+        aria-pressed={dark}
+        title={toggleLabel}
+      >
+        {dark ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
+      </button>
     </header>
   );
 }

@@ -4,6 +4,7 @@ import process from 'node:process';
 
 const root = process.cwd();
 const source = await readFile(path.join(root, 'src/main.jsx'), 'utf8');
+const themeBootstrap = await readFile(path.join(root, 'public/theme-bootstrap.js'), 'utf8');
 const requiredSections = [
   'overview',
   'architecture',
@@ -35,6 +36,29 @@ for (const phrase of [
   'build:all'
 ]) {
   assert(source.includes(phrase), `Missing integration guidance: ${phrase}`);
+}
+
+for (const phrase of [
+  "document.documentElement.dataset.theme",
+  "window.localStorage.setItem('officejs-doc:theme'",
+  "window.addEventListener('scroll', updateActiveSection",
+  "className=\"theme-toggle\""
+]) {
+  assert(source.includes(phrase), `Missing navigation or theme behavior: ${phrase}`);
+}
+
+assert(
+  themeBootstrap.includes("window.matchMedia('(prefers-color-scheme: dark)')"),
+  'Theme bootstrap must honor the system preference'
+);
+assert(
+  themeBootstrap.includes("window.localStorage.getItem(storageKey)"),
+  'Theme bootstrap must restore the saved preference'
+);
+await access(path.join(root, 'public/assets/office-preview-logo-light.webp'));
+await access(path.join(root, 'public/assets/office-preview-logo-dark.webp'));
+if (await exists(path.join(root, 'dist'))) {
+  await access(path.join(root, 'dist/theme-bootstrap.js'));
 }
 
 for (const staleExample of [
