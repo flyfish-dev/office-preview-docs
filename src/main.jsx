@@ -77,7 +77,7 @@ const codeLanguageAliases = {
   yml: 'yaml'
 };
 
-const siteVersion = '2026.08';
+const siteVersion = '2026.10';
 const registrarVersion = 'v0.1.4';
 const brandAssets = {
   logoDark: '/assets/office-preview-logo-dark.webp',
@@ -90,6 +90,7 @@ const navGroups = [
     label: '开始',
     items: [
       { id: 'overview', title: '总览' },
+      { id: 'release-notes', title: '十月版本更新' },
       { id: 'architecture', title: '架构与运行链路' },
       { id: 'editions', title: '版本与交付模式' }
     ]
@@ -163,8 +164,8 @@ const editionRows = [
     edition: '商业版',
     audience: '单项目商业部署',
     repos: '合同内 viewer 源码仓和必要 demo 仓',
-    license: 'office-preview-license-v2，绑定域名和功能',
-    delivery: '默认单域名单部署，按合同扩展'
+    license: '永久运行授权，绑定合同内来源和功能',
+    delivery: '一个主要项目；最多 5 个具体来源或 1 个 HTTPS SaaS 泛域名'
   },
   {
     edition: '企业版',
@@ -1029,6 +1030,49 @@ function App() {
           </div>
         </Section>
 
+        <Section id="release-notes" kicker="Release · 2026-10-19" title="十月版本更新与升级验收">
+          <p>
+            下载完整更新说明：<a href="/downloads/2026-10-19.zh-CN.md">简体中文</a> · <a href="/downloads/2026-10-19.en.md">English</a>。
+          </p>
+          <p className="lead">
+            本轮综合构建同步 DOC、DOCX、PPT、PPTX 与 Excel 组件。升级时使用同一次构建的完整产物，
+            不要把新版入口与旧 Worker、字体配置或样式文件混合部署。
+          </p>
+          <Table
+            columns={['能力', '本轮更新', '建议验收']}
+            rows={[
+              ['DOCX', '优先展示可读页面，后台校准字体与版式；改进表格内容框、连续分节、标点和混排换行。', '分别检查首屏、字体完成后的最终排版、远页跳转和滚动返回。'],
+              ['DOC', '改进原始行距、表格内文字、符号字体；按页分批完成显示，复用图片资源。', '核对跨页表格、行距、图片以及流式与分页两种阅读方式。'],
+              ['PPT / PPTX', '同步 PPT 母版文字与图形、资源释放改进；保留 PPTX 合并表格、SVG 隔离及旧公式文字修复。', '检查母版背景、连接线、合并表格、公式及连续切换。'],
+              ['Excel', '压缩大表行高元数据；保留视窗加载和选区交互；新增旧版 XLS 内嵌 PNG/JPEG 图片原始行列定位。', '检查行高列宽、跨格文字与边框、拖选、工作表切换和图片位置。'],
+              ['接入与交付', '提供 file-viewer 分流示例、同源文件代理、Nginx / Docker 配置和 WPF WebView2 示例。', '业务权限仍由宿主负责，复核文件鉴权、许可证、安全策略和回滚。']
+            ]}
+          />
+          <h3>渐进显示与字体配置</h3>
+          <p>
+            DOCX 使用分页 Canvas。首先显示可读页面，再在后台加载所需字体并校准版式；滚动时只保留当前与邻近页面。
+            已挂载 Canvas 数量不等于总页数。验收还原度应等待字体与最终布局完成，不以首屏替代字体作为最终结果。
+          </p>
+          <p>
+            默认字体服务需要网络。内网或离线交付应提前准备获授权的本地字体与静态资源，配置项目自己的字体服务，
+            并检查 CSP、跨域和字体可达性。浏览器端解析不等于所有资源默认无网络依赖。
+          </p>
+          <h3>大表与旧版图片</h3>
+          <p>
+            大工作表使用 Worker 视窗数据和双向虚拟滚动；框选通过独立选区层显示，不随选区大小创建整片单元格 DOM。
+            旧 XLS 图片目前覆盖内嵌 PNG/JPEG，不应据此推断全部旧图元和外链图片均受支持。
+            文件规模、图像数量、字体与客户端内存都会影响实际体验，请用代表性文件验收。
+          </p>
+          <p>
+            Windows 桌面集成可参照源码包的 <code>examples/wpf-webview2/README.md</code>，
+            支持显式格式、无扩展名路径、文件流及状态回传。PDF 由本地 PDF.js Worker 提供，单独验证，不计入 Office 格式引擎。
+          </p>
+          <div className="notice">
+            <FileCheck2 size={20} />
+            <p>本轮更新持续改善常见文件的还原与响应，不承诺所有文档与原生 Office 逐像素一致。采购和上线前请用实际业务文件确认效果。</p>
+          </div>
+        </Section>
+
         <Section id="architecture" kicker="Architecture" title="架构与运行链路">
           <div className="architecture-grid">
             <div className="architecture-copy">
@@ -1497,6 +1541,17 @@ location /office-preview/assets/ {
         </Section>
 
         <Section id="license-model" kicker="License" title="授权模型">
+          <h3>运行授权与更新维护分别确认</h3>
+          <p>
+            当前商业版商品包含合同范围内的永久商用运行许可证及首年代码更新与维护；
+            后续服务与代码更新可按年续费。已取得的永久运行授权不因未续费而失效，续费也不扩大原来的功能、部署或分发范围。
+            旧订单继续以已签合同和交付许可证为准，不会因本文更新自动改变期限。
+          </p>
+          <p>
+            企业版部署、分发额度和可签发的子授权期限以合同、订单与企业分发许可证为准。
+            不应把年度维护期、企业分发许可证有效期与子项目运行授权有效期视为同一个期限。
+            具体版本与现价请在 <a href="https://dev.flyfish.group/shop/detail/1004" target="_blank" rel="noreferrer">飞鱼小铺商品页</a>核对。
+          </p>
           <div className="cards two">
             <InfoCard
               icon={KeyRound}

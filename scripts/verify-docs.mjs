@@ -7,6 +7,7 @@ const source = await readFile(path.join(root, 'src/main.jsx'), 'utf8');
 const themeBootstrap = await readFile(path.join(root, 'public/theme-bootstrap.js'), 'utf8');
 const requiredSections = [
   'overview',
+  'release-notes',
   'architecture',
   'editions',
   'quickstart',
@@ -36,6 +37,16 @@ for (const phrase of [
   'build:all'
 ]) {
   assert(source.includes(phrase), `Missing integration guidance: ${phrase}`);
+}
+
+for (const phrase of [
+  '十月版本更新与升级验收',
+  '永久运行授权不因未续费而失效',
+  '年度维护期、企业分发许可证有效期与子项目运行授权有效期',
+  '默认字体服务需要网络',
+  'examples/wpf-webview2/README.md'
+]) {
+  assert(source.includes(phrase), `Missing current release or licensing guidance: ${phrase}`);
 }
 
 for (const phrase of [
@@ -76,7 +87,9 @@ const downloads = [
   'file-viewer-office-preview-nginx.conf',
   'file-viewer-office-preview-docker-compose.yml',
   'file-viewer-office-preview-checklist.md',
-  'file-viewer-office-preview-integration-demo.md'
+  'file-viewer-office-preview-integration-demo.md',
+  '2026-10-19.zh-CN.md',
+  '2026-10-19.en.md'
 ];
 
 for (const file of downloads) {
